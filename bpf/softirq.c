@@ -12,7 +12,7 @@
 #define PHASE_EXCUTE 2
 #define SOFTIRQ_THRESH 10000000
 
-volatile const __u32 irq_filter_bits = 0x8; // {"net_rx"}
+const __u32 irq_filter_bits = 0x8; // {"net_rx"}
 
 bool filter_irqs(u32 vec_nr)
 {
