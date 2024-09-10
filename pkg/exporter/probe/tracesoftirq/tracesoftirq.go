@@ -346,6 +346,7 @@ func replaceConstant(spec *ebpf.CollectionSpec, name string, value uint32) error
 	}
 	return nil
 }
+
 func attachTracepoints(p *softirqProbe) error {
 	prograise, err := link.Tracepoint("irq", "softirq_raise", p.objs.TraceSoftirqRaise, &link.TracepointOptions{})
 	if err != nil {
