@@ -10,7 +10,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  OWNER: 0x0034
+  OWNER: "0x0034"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
