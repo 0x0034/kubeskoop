@@ -299,32 +299,54 @@ func (p *softirqProbe) perfLoop() {
 }
 
 func (p *softirqProbe) loadAndAttachBPF() error {
-	// 准备动作
+	// 移除内存锁定限制
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return err
 	}
 
-	opts := ebpf.CollectionOptions{}
-	// 获取btf信息
-	opts.Programs = ebpf.ProgramOptions{
-		KernelTypes: bpfutil.LoadBTFSpecOrNil(),
+	opts := ebpf.CollectionOptions{
+		Programs: ebpf.ProgramOptions{
+			KernelTypes: bpfutil.LoadBTFSpecOrNil(),
+		},
 	}
 
-	// 获取Loaded的程序/map的fd信息
+	// 加载 BPF 规范
 	spec, err := loadBpf()
 	if err != nil {
 		return err
 	}
-	err = spec.RewriteConstants(map[string]interface{}{"irq_filter_bits": p.ebpfProbeIrqType})
-	if err != nil {
-		return err
-	}
 
+	// 手动替换 eBPF 程序中的常量
+	replaceConstant(spec, "irq_filter_bits", p.ebpfProbeIrqType)
+
+	// 加载并分配 BPF 对象
 	err = spec.LoadAndAssign(&p.objs, &opts)
 	if err != nil {
 		return err
 	}
 
+	// 附加 tracepoints
+	if err := attachTracepoints(p); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func replaceConstant(spec *ebpf.CollectionSpec, name string, value uint32) error {
+	for _, prog := range spec.Programs {
+		// 遍历程序字节码
+		for i := range prog.Instructions {
+			ins := &prog.Instructions[i]
+			// 检查是否为要替换的常量
+			if ins.Reference() == name {
+				ins.Constant = int64(value) // 更新为新的 uint32 值
+			}
+		}
+	}
+	return nil
+}
+func attachTracepoints(p *softirqProbe) error {
 	prograise, err := link.Tracepoint("irq", "softirq_raise", p.objs.TraceSoftirqRaise, &link.TracepointOptions{})
 	if err != nil {
 		return fmt.Errorf("link softirq_raise: %s", err.Error())
