@@ -66,7 +66,7 @@ func metricsProbeCreator(args softirqArgs) (probe.MetricsProbe, error) {
 	opts := probe.BatchMetricsOpts{
 		Namespace:      probe.MetricsNamespace,
 		Subsystem:      probeName,
-		VariableLabels: []string{"k8s_node", "softirq_type"},
+		VariableLabels: []string{"k8s_node", "softirq_type", "cpu", "pid", "latency"},
 		SingleMetricsOpts: []probe.SingleMetricsOpts{
 			{Name: SOFTIRQ_SCHED_SLOW, ValueType: prometheus.CounterValue},
 			{Name: SOFTIRQ_SCHED_100MS, ValueType: prometheus.CounterValue},
@@ -105,8 +105,11 @@ func (p *metricsProbe) collectOnce(emit probe.Emit) error {
 	defer _softirqProbe.metricsLock.RUnlock()
 	nodeName := nettop.GetNodeName()
 	for metricsName, values := range _softirqProbe.metricsMap {
-		for _, irqType := range enabledIrqTypes(_softirqProbe.metricsProbeIrqTypes) {
-			emit(metricsName, []string{nodeName, irqType}, float64(values[irqType]))
+		for irqType, details := range values {
+			cpu := details["cpu"]
+			pid := details["pid"]
+			latency := bpfutil.GetHumanTimes(details["latency"])
+			emit(metricsName, []string{nodeName, irqType, fmt.Sprintf("%d", cpu), fmt.Sprintf("%d", pid), latency}, float64(details["count"]))
 		}
 	}
 	return nil
@@ -140,7 +143,7 @@ type softirqProbe struct {
 	ebpfProbeIrqType     uint32
 	lock                 sync.Mutex
 	perfReader           *perf.Reader
-	metricsMap           map[string]map[string]uint64
+	metricsMap           map[string]map[string]map[string]uint64
 	metricsLock          sync.RWMutex
 }
 
@@ -217,17 +220,22 @@ func (p *softirqProbe) start(probeType probe.Type) (err error) {
 	return nil
 }
 
-func (p *softirqProbe) updateMetrics(metrics string, irqType uint32) {
+func (p *softirqProbe) updateMetrics(metrics string, irqType uint32, cpu uint32, pid uint32, latency uint64) {
 	p.metricsLock.Lock()
 	defer p.metricsLock.Unlock()
 	if !filterIrqEvent(p.metricsProbeIrqTypes, irqType) {
 		return
 	}
 	if _, ok := p.metricsMap[metrics]; !ok {
-		p.metricsMap[metrics] = make(map[string]uint64)
+		p.metricsMap[metrics] = make(map[string]map[string]uint64)
 	}
-
-	p.metricsMap[metrics][convertIrqType(irqType)]++
+	if _, ok := p.metricsMap[metrics][convertIrqType(irqType)]; !ok {
+		p.metricsMap[metrics][convertIrqType(irqType)] = make(map[string]uint64)
+	}
+	p.metricsMap[metrics][convertIrqType(irqType)]["cpu"] = uint64(cpu)
+	p.metricsMap[metrics][convertIrqType(irqType)]["pid"] = uint64(pid)
+	p.metricsMap[metrics][convertIrqType(irqType)]["latency"] = latency
+	p.metricsMap[metrics][convertIrqType(irqType)]["count"]++
 }
 
 func (p *softirqProbe) perfLoop() {
@@ -282,19 +290,19 @@ func (p *softirqProbe) perfLoop() {
 		switch event.Phase {
 		case 1:
 			evt.Type = "SOFTIRQ_SCHED_SLOW"
-			p.updateMetrics(SOFTIRQ_SCHED_SLOW, event.VecNr)
+			p.updateMetrics(SOFTIRQ_SCHED_SLOW, event.VecNr, event.Cpu, event.Pid, event.Latency)
 
 			if event.Latency > 100_000_000 {
 				evt.Type = "SOFTIRQ_SCHED_100MS"
-				p.updateMetrics(SOFTIRQ_SCHED_100MS, event.VecNr)
+				p.updateMetrics(SOFTIRQ_SCHED_100MS, event.VecNr, event.Cpu, event.Pid, event.Latency)
 			}
 		case 2:
 			evt.Type = "SOFTIRQ_EXCUTE_SLOW"
-			p.updateMetrics(SOFTIRQ_EXCUTE_SLOW, event.VecNr)
+			p.updateMetrics(SOFTIRQ_EXCUTE_SLOW, event.VecNr, event.Cpu, event.Pid, event.Latency)
 
 			if event.Latency > 100_000_000 {
 				evt.Type = "SOFTIRQ_EXCUTE_100MS"
-				p.updateMetrics(SOFTIRQ_EXCUTE_100MS, event.VecNr)
+				p.updateMetrics(SOFTIRQ_EXCUTE_100MS, event.VecNr, event.Cpu, event.Pid, event.Latency)
 			}
 
 		default:
