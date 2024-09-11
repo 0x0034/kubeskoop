@@ -38,7 +38,7 @@ var (
 	probeName     = "softirq"
 	softirqTypes  = []string{"hi", "timer", "net_tx", "net_rx", "block", "irq_poll", "tasklet", "sched", "hrtimer", "rcu"}
 	_softirqProbe = &softirqProbe{
-		metricsMap: map[string]map[string]uint64{
+		metricsMap: map[string]map[string]map[string]uint64{
 			SOFTIRQ_SCHED_SLOW:   {},
 			SOFTIRQ_SCHED_100MS:  {},
 			SOFTIRQ_EXCUTE_SLOW:  {},
@@ -105,11 +105,8 @@ func (p *metricsProbe) collectOnce(emit probe.Emit) error {
 	defer _softirqProbe.metricsLock.RUnlock()
 	nodeName := nettop.GetNodeName()
 	for metricsName, values := range _softirqProbe.metricsMap {
-		for irqType, details := range values {
-			cpu := details["cpu"]
-			pid := details["pid"]
-			latency := bpfutil.GetHumanTimes(details["latency"])
-			emit(metricsName, []string{nodeName, irqType, fmt.Sprintf("%d", cpu), fmt.Sprintf("%d", pid), latency}, float64(details["count"]))
+		for _, irqType := range enabledIrqTypes(_softirqProbe.metricsProbeIrqTypes) {
+			emit(metricsName, []string{nodeName, irqType, fmt.Sprintf("%d", values[irqType]["cpu"]), fmt.Sprintf("%d", values[irqType]["pid"]), bpfutil.GetHumanTimes(values[irqType]["latency"])}, float64(values[irqType]["count"]))
 		}
 	}
 	return nil
