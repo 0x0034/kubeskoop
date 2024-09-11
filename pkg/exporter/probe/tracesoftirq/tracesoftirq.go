@@ -291,7 +291,7 @@ func (p *softirqProbe) perfLoop() {
 		}
 
 		evt.Message = fmt.Sprintf("cpu=%d pid=%d latency=%s ", event.Cpu, event.Pid, bpfutil.GetHumanTimes(event.Latency))
-		if filterIrqEvent(p.eventProbeIrqTypes, event.VecNr) && p.sink != nil {
+		if filterIrqEvent(p.eventProbeIrqTypes, event.VecNr) && p.sink != nil && event.Latency > 100_000_000 {
 			log.Debugf("%s sink event %s", probeName, util.ToJSONString(evt))
 			p.sink <- evt
 		}
@@ -346,6 +346,7 @@ func replaceConstant(spec *ebpf.CollectionSpec, name string, value uint32) error
 	}
 	return nil
 }
+
 func attachTracepoints(p *softirqProbe) error {
 	prograise, err := link.Tracepoint("irq", "softirq_raise", p.objs.TraceSoftirqRaise, &link.TracepointOptions{})
 	if err != nil {
