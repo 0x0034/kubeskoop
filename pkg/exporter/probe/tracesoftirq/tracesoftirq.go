@@ -291,7 +291,7 @@ func (p *softirqProbe) perfLoop() {
 		}
 
 		evt.Message = fmt.Sprintf("cpu=%d pid=%d latency=%s ", event.Cpu, event.Pid, bpfutil.GetHumanTimes(event.Latency))
-		if filterIrqEvent(p.eventProbeIrqTypes, event.VecNr) && p.sink != nil {
+		if filterIrqEvent(p.eventProbeIrqTypes, event.VecNr) && p.sink != nil && event.Latency > 100_000_000 {
 			log.Debugf("%s sink event %s", probeName, util.ToJSONString(evt))
 			p.sink <- evt
 		}
