@@ -30,10 +30,8 @@ import (
 const (
 	SOFTIRQ_SCHED_SLOW   = "schedslow"       //nolint
 	SOFTIRQ_SCHED_100MS  = "schedslow100ms"  //nolint
-	SOFTIRQ_SCHED_TOTAL  = "sched_total"     //nolint
 	SOFTIRQ_EXCUTE_SLOW  = "excuteslow"      //nolint
 	SOFTIRQ_EXCUTE_100MS = "excuteslow100ms" //nolint
-	SOFTIRQ_EXCUTE_TOTAL = "execute_total"   //nolint
 )
 
 var (
@@ -43,10 +41,8 @@ var (
 		metricsMap: map[string]map[string]uint64{
 			SOFTIRQ_SCHED_SLOW:   {},
 			SOFTIRQ_SCHED_100MS:  {},
-			SOFTIRQ_SCHED_TOTAL:  {},
 			SOFTIRQ_EXCUTE_SLOW:  {},
 			SOFTIRQ_EXCUTE_100MS: {},
-			SOFTIRQ_EXCUTE_TOTAL: {},
 		},
 	}
 )
@@ -74,10 +70,8 @@ func metricsProbeCreator(args softirqArgs) (probe.MetricsProbe, error) {
 		SingleMetricsOpts: []probe.SingleMetricsOpts{
 			{Name: SOFTIRQ_SCHED_SLOW, ValueType: prometheus.CounterValue},
 			{Name: SOFTIRQ_SCHED_100MS, ValueType: prometheus.CounterValue},
-			{Name: SOFTIRQ_SCHED_TOTAL, ValueType: prometheus.CounterValue},
 			{Name: SOFTIRQ_EXCUTE_SLOW, ValueType: prometheus.CounterValue},
 			{Name: SOFTIRQ_EXCUTE_100MS, ValueType: prometheus.CounterValue},
-			{Name: SOFTIRQ_EXCUTE_TOTAL, ValueType: prometheus.CounterValue},
 		},
 	}
 	batchMetrics := probe.NewBatchMetrics(opts, p.collectOnce)
